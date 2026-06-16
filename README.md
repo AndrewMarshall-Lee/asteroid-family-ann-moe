@@ -189,7 +189,7 @@ For a faster rerun using the included tuned parameters, omit `--tune`. If
 
 ## Quick Pipeline Test
 
-For a fast end-to-end check without overwriting the included artifacts:
+For a fast end-to-end pipeline check without overwriting the included artifacts:
 
 ```bash
 python code/tune.py \
