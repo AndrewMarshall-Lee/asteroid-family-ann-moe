@@ -187,7 +187,7 @@ downloaded catalogues -> FITS -> data/processed_data.csv -> tuning -> repeated t
 For a faster rerun using the included tuned parameters, omit `--tune`. If
 `data/processed_data.csv` already exists, omit `--rebuild-data`.
 
-## Quick Smoke Test
+## Quick Pipeline Test
 
 For a fast end-to-end check without overwriting the included artifacts:
 
