@@ -1,0 +1,13 @@
+pandas
+numpy
+scikit-learn
+joblib
+torch
+astropy
+optuna
+requests
+pdr
+beautifulsoup4
+scipy
+csaps
+matplotlib

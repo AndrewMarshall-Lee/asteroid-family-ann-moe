@@ -1,0 +1,22 @@
+MODEL ARCHITECTURE REPORT
+=========================
+
+Feature set:
+['packed_mpc_name', 'PROPER_SEMIMAJOR_AXIS', 'PROPER_ECCENTRICITY', 'SINE_OF_PROPER_INCLINATION', 'family_id', 'gaia_slope', 'gaia_z_minus_i']
+
+Input dimension:  5
+Output dimension: 49
+Output activation: softmax
+
+Hidden layers:
+  Layer 1: units=64, dropout=0.1369942555636766, activation=gelu
+  Layer 2: units=61, dropout=0.098731132762367, activation=gelu
+
+Training settings:
+  Optimiser:        adamw
+  Learning rate:    0.0079835581869779
+  Weight decay:     3.3434015473330695e-08
+  Batch size:       256
+  Validation split: 0.184482747133429
+
+Total trainable parameters: 7387

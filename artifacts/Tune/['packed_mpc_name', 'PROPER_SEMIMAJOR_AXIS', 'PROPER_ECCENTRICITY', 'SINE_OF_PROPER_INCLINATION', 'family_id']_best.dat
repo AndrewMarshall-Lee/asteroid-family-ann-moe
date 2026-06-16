@@ -1,0 +1,2 @@
+n_layers,layer_0_width,layer_1_width,dropout_0,dropout_1,activation,lr,batch_size,optimizer,weight_decay,val_split,early_stopping_patience
+2,58,27,0.10007338274562205,0.2706509760626849,gelu,0.005406586069422951,64,sgd,1.0394235739635131e-08,0.2870725175577812,16

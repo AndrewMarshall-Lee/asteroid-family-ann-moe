@@ -1,0 +1,2 @@
+n_layers,layer_0_width,layer_1_width,layer_2_width,layer_3_width,layer_4_width,dropout_0,dropout_1,dropout_2,dropout_3,dropout_4,activation,lr,batch_size,optimizer,weight_decay,val_split,early_stopping_patience
+5,17,52,36,31,41,0.03815135684132221,0.19146175426281753,0.3036566391143728,0.012684093734166636,0.3400053095664799,leaky_relu,0.0036581739576142434,128,adamw,7.588744596143321e-06,0.20686740563381592,13
