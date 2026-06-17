@@ -8,7 +8,7 @@ import argparse
 from pathlib import Path
 
 from classify import test_model
-from feature_sets import add_feature_args, resolve_feature_list
+from feature_sets import add_feature_args, resolve_feature_selection
 
 
 def main() -> None:
@@ -19,10 +19,10 @@ def main() -> None:
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
 
-    feature_list = resolve_feature_list(args)
+    feature_list, artifact_tag = resolve_feature_selection(args)
     artifact_root = Path(args.artifact_root)
-    model_path = artifact_root / "Train" / f"{feature_list}_model.pth"
-    test_model(args.data, model_path, args.output, feature_list, artifact_root)
+    model_path = artifact_root / "Train" / f"{artifact_tag}_model.pth"
+    test_model(args.data, model_path, args.output, feature_list, artifact_root, artifact_tag)
 
 
 if __name__ == "__main__":

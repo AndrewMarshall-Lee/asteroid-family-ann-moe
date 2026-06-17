@@ -213,6 +213,7 @@ def knn_bidirectional_impute(df, col_x, col_y, n_neighbors=5, flag_x_col=None, f
 
 def plot_knn_imputation_effect(df_before, df_after, col_x, col_y):
     """Plot original vs post-imputation data (SDSS → Gaia, no title)."""
+    os.makedirs("Figures_final", exist_ok=True)
 
     FEATURE_LABELS = {
         "A_MAG": r"$a^*$",
@@ -254,7 +255,8 @@ def plot_knn_imputation_effect(df_before, df_after, col_x, col_y):
     plt.show()
     plt.savefig(f"Figures_final/knn_imputation_sdss_to_gaia_{col_x}.pdf", bbox_inches="tight")
 
-# Ensure local directory exists os.makedirs(LOCAL_DATA_DIR, exist_ok=True)
+# Ensure local data directory exists.
+os.makedirs(LOCAL_DATA_DIR, exist_ok=True)
 
 # Dictionary to hold DataFrames for each data source to merge
 dataframes = {}

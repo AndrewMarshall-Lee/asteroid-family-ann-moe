@@ -40,6 +40,9 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+`requirements.txt` records the package versions used for this release. Other
+nearby versions may work, but the pinned file is the recommended starting point.
+
 If you are uploading this repository to GitHub, install and enable Git LFS first
 for the saved model and preprocessing artifacts:
 
@@ -59,17 +62,17 @@ python code/feature_sets.py
 
 The named experts are:
 
-```text
-base
-H
-pV
-H_pV
-A_iz
-gaia_color
-A_iz_gaia_color
-A_iz_pV_gaia_color
-H_A_slope
-```
+| Expert | Additional features beyond proper elements |
+| --- | --- |
+| `base` | none |
+| `H` | absolute magnitude |
+| `pV` | visible albedo |
+| `H_pV` | absolute magnitude, visible albedo |
+| `A_iz` | SDSS `a*`, SDSS `i-z` colour |
+| `gaia_color` | Gaia spectral slope, Gaia `z-i` colour |
+| `A_iz_gaia_color` | SDSS colour and Gaia colour features |
+| `A_iz_pV_gaia_color` | visible albedo, SDSS colour, and Gaia colour features |
+| `H_A_slope` | absolute magnitude, SDSS `a*`, Gaia spectral slope |
 
 All commands below accept either `--expert <name>` for these built-in feature
 sets or `--features "[...]"` for a custom Python-list column specification.
@@ -92,6 +95,14 @@ data/unified_asteroid_data_with_gaia.fits
 The script downloads source catalogues into `data/`, so this step needs network
 access and can take a while.
 
+## Data Provenance
+
+The source table is assembled from public asteroid catalogues, including MPCORB
+identifiers/orbital elements, Nesvorny family/proper-element catalogues, SDSS
+MOC photometry, NEOWISE diameters/albedos, PRIMASS spectral parameters, and Gaia
+DR3 asteroid reflectance spectra. The builder downloads these sources into the
+local `data/` directory and writes the merged FITS table.
+
 ## Rebuild The Processed Dataset
 
 Create the training table from the generated FITS table:
@@ -103,6 +114,18 @@ python code/utils.py
 This writes `data/processed_data.csv`. The file is intentionally not tracked in
 the repository because it is generated.
 
+For the release dataset used while preparing this repository, the processed
+training table contained approximately:
+
+```text
+321705 rows
+31 columns
+53 family labels
+```
+
+Because the source-builder downloads live upstream catalogues, exact counts may
+change slightly if those catalogues are updated.
+
 ## Tune An Expert
 
 Tune hyperparameters with Optuna:
@@ -111,14 +134,15 @@ Tune hyperparameters with Optuna:
 python code/tune.py \
   --expert H_A_slope \
   --trials 100 \
-  --epochs 50
+  --epochs 50 \
+  --seed 42
 ```
 
 This writes:
 
 ```text
-artifacts/Tune/<feature_list>_best.dat
-artifacts/Trials/<feature_list>_trials.dat
+artifacts/Tune/<expert>_best.dat
+artifacts/Trials/<expert>_trials.dat
 ```
 
 ## Train An Expert
@@ -128,7 +152,8 @@ Train using the matching tuned hyperparameters:
 ```bash
 python code/train_moe.py \
   --expert H_A_slope \
-  --epochs 300
+  --epochs 300 \
+  --seed 42
 ```
 
 This writes model weights to `artifacts/Train/` and updates the corresponding
@@ -148,6 +173,14 @@ python code/run_inference.py \
 Rows with missing required features are kept in the output and marked
 `ANN_reviewed = False`.
 
+Inference output keeps the catalogue columns and appends:
+
+```text
+ANN_reviewed
+prediction_confidence
+ANN_predicted_family_id
+```
+
 ## Majority Vote
 
 If you have repeated prediction files from multiple stochastic runs, combine
@@ -162,6 +195,16 @@ python code/majority_vote.py \
 
 This writes majority-vote CSVs under `outputs/Majority_Predictions/`.
 
+Majority-vote output adds vote diagnostics including:
+
+```text
+n_votes
+vote_top_frac
+vote_entropy
+n_unique_votes
+prediction_confidence_mean
+```
+
 ## Full Expert Pipeline
 
 To produce the generated CSVs from scratch for one expert, run:
@@ -175,7 +218,8 @@ python code/run_expert_pipeline.py \
   --trials 100 \
   --tune-epochs 50 \
   --train-epochs 300 \
-  --runs 20
+  --runs 20 \
+  --seed 42
 ```
 
 This runs the full sequence:
@@ -189,23 +233,26 @@ For a faster rerun using the included tuned parameters, omit `--tune`. If
 
 ## Quick Pipeline Test
 
-For a fast end-to-end pipeline check without overwriting the included artifacts:
+After `data/processed_data.csv` exists, this gives a fast training-pipeline
+check without overwriting the included artifacts:
 
 ```bash
 python code/tune.py \
   --expert base \
-  --artifact-root /tmp/asteroid-ann-smoke-artifacts \
+  --artifact-root /tmp/asteroid-ann-pipeline-artifacts \
   --trials 1 \
-  --epochs 1
+  --epochs 1 \
+  --seed 42
 
 python code/train_moe.py \
   --expert base \
-  --artifact-root /tmp/asteroid-ann-smoke-artifacts \
-  --epochs 1
+  --artifact-root /tmp/asteroid-ann-pipeline-artifacts \
+  --epochs 1 \
+  --seed 42
 ```
 
 ## Notes
 
-Training and tuning are stochastic. Exact reproduction of the included
-predictions should use the saved artifacts in `artifacts/`; new tuning/training
-runs may produce slightly different models.
+Training and tuning are stochastic unless `--seed` is provided. Exact
+reproduction of the included predictions should use the saved artifacts in
+`artifacts/`; new tuning/training runs may produce slightly different models.

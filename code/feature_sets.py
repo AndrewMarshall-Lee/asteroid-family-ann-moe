@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import argparse
 import ast
+import hashlib
+import re
 
 
 BASE_FEATURES = [
@@ -48,6 +50,31 @@ def feature_list_for(expert: str) -> list[str]:
     return BASE_FEATURES + EXPERT_FEATURES[expert]
 
 
+def expert_for_feature_list(feature_list: list[str]) -> str | None:
+    """Return the named expert matching a full feature list, if one exists."""
+    feature_tuple = tuple(feature_list)
+    for expert in EXPERT_FEATURES:
+        if tuple(feature_list_for(expert)) == feature_tuple:
+            return expert
+    return None
+
+
+def artifact_tag_for(feature_list: list[str], expert: str | None = None) -> str:
+    """Return a stable artifact tag for a named or custom feature set."""
+    if expert:
+        return expert
+
+    matched = expert_for_feature_list(feature_list)
+    if matched:
+        return matched
+
+    extras = [col for col in feature_list if col not in BASE_FEATURES]
+    label = "_".join(extras) if extras else "base"
+    label = re.sub(r"[^A-Za-z0-9_]+", "_", label).strip("_")
+    digest = hashlib.sha1(str(feature_list).encode("utf-8")).hexdigest()[:8]
+    return f"custom_{label}_{digest}" if label else f"custom_{digest}"
+
+
 def resolve_feature_list(args: argparse.Namespace) -> list[str]:
     """Resolve either --expert or --features CLI input to a feature list."""
     expert = getattr(args, "expert", None)
@@ -58,6 +85,12 @@ def resolve_feature_list(args: argparse.Namespace) -> list[str]:
     if expert:
         return feature_list_for(expert)
     return ast.literal_eval(features)
+
+
+def resolve_feature_selection(args: argparse.Namespace) -> tuple[list[str], str]:
+    """Resolve CLI input to a feature list and artifact tag."""
+    feature_list = resolve_feature_list(args)
+    return feature_list, artifact_tag_for(feature_list, getattr(args, "expert", None))
 
 
 def add_feature_args(parser: argparse.ArgumentParser) -> None:

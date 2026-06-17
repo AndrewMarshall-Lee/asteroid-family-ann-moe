@@ -50,17 +50,24 @@ def train_model(
     delta: float,
     feature_list: list[str],
     artifact_root: str | Path = ".",
+    artifact_tag: str | None = None,
+    seed: int | None = None,
 ) -> FlexiMLP:
     """Train one model and save weights/losses under artifact_root."""
     artifact_root = Path(artifact_root)
     for name in ["Train", "Loss"]:
         (artifact_root / name).mkdir(parents=True, exist_ok=True)
 
+    if seed is not None:
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+
     input_dim = data.shape[1]
     output_dim = len(torch.unique(target))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    feature_tag = str(feature_list)
-    params = _load_hyperparameters(artifact_root / "Tune" / f"{feature_tag}_best.dat")
+    artifact_tag = artifact_tag or str(feature_list)
+    params = _load_hyperparameters(artifact_root / "Tune" / f"{artifact_tag}_best.dat")
 
     model = FlexiMLP(
         input_dim=input_dim,
@@ -86,7 +93,7 @@ def train_model(
         optimizer = optim.Adam(model.parameters(), lr=params["lr"], weight_decay=params["weight_decay"])
 
     dataset = TensorDataset(data, target)
-    rng = np.random.default_rng()
+    rng = np.random.default_rng(seed)
     class_to_indices: dict[int, list[int]] = defaultdict(list)
     for idx, cls in enumerate(target.cpu().numpy()):
         class_to_indices[int(cls)].append(idx)
@@ -100,7 +107,16 @@ def train_model(
         val_idx.extend(shuffled[:n_val])
         train_idx.extend(shuffled[n_val:])
 
-    train_loader = DataLoader(Subset(dataset, train_idx), batch_size=params["batch_size"], shuffle=True)
+    generator = torch.Generator()
+    if seed is not None:
+        generator.manual_seed(seed)
+
+    train_loader = DataLoader(
+        Subset(dataset, train_idx),
+        batch_size=params["batch_size"],
+        shuffle=True,
+        generator=generator if seed is not None else None,
+    )
     val_loader = DataLoader(Subset(dataset, val_idx), batch_size=params["batch_size"], shuffle=False)
     early_stopping = EarlyStopping(patience, delta)
     val_loss_log = []
@@ -134,6 +150,6 @@ def train_model(
     if early_stop:
         early_stopping.load_best_model(model)
 
-    torch.save(model.state_dict(), artifact_root / "Train" / f"{feature_tag}_model.pth")
-    np.savetxt(artifact_root / "Loss" / f"{feature_tag}_loss.dat", np.array(val_loss_log))
+    torch.save(model.state_dict(), artifact_root / "Train" / f"{artifact_tag}_model.pth")
+    np.savetxt(artifact_root / "Loss" / f"{artifact_tag}_loss.dat", np.array(val_loss_log))
     return model

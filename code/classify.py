@@ -51,18 +51,19 @@ def test_model(
     output_csv_path: str | Path | None,
     feature_list: list[str],
     artifact_root: str | Path = ".",
+    artifact_tag: str | None = None,
 ) -> pd.DataFrame:
     """Classify complete rows and preserve non-reviewable rows in the output."""
     artifact_root = Path(artifact_root)
-    feature_tag = str(feature_list)
+    artifact_tag = artifact_tag or str(feature_list)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     df_full = pd.read_csv(csv_path, index_col=0, low_memory=False)
     df_model = df_full[feature_list].dropna()
 
-    scaler = joblib.load(artifact_root / "Scaler" / f"{feature_tag}_scaler.save")
-    label_encoder = joblib.load(artifact_root / "LE" / f"{feature_tag}_label_encoder.save")
-    params = _load_hyperparameters(artifact_root / "Tune" / f"{feature_tag}_best.dat")
+    scaler = joblib.load(artifact_root / "Scaler" / f"{artifact_tag}_scaler.save")
+    label_encoder = joblib.load(artifact_root / "LE" / f"{artifact_tag}_label_encoder.save")
+    params = _load_hyperparameters(artifact_root / "Tune" / f"{artifact_tag}_best.dat")
 
     x = df_model.drop(columns=["family_id", "packed_mpc_name"])
     x_scaled = scaler.transform(x)

@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from feature_sets import add_feature_args, resolve_feature_list
+from feature_sets import add_feature_args, artifact_tag_for, resolve_feature_selection
 
 
 PRED_COL = "ANN_predicted_family_id"
@@ -28,9 +28,13 @@ def vote_entropy(votes: list[str]) -> float:
     return float(-(p * np.log(p)).sum())
 
 
-def load_multirun_majority(prediction_dir: Path, feature_list: list[str]) -> pd.DataFrame:
-    feature_tag = str(feature_list)
-    pattern = str(prediction_dir / f"{glob.escape(feature_tag)}*run*.csv")
+def load_multirun_majority(
+    prediction_dir: Path,
+    feature_list: list[str],
+    artifact_tag: str | None = None,
+) -> pd.DataFrame:
+    artifact_tag = artifact_tag or artifact_tag_for(feature_list)
+    pattern = str(prediction_dir / f"{glob.escape(artifact_tag)}*run*.csv")
     files = sorted(glob.glob(pattern))
     if not files:
         raise FileNotFoundError(f"No prediction files found for pattern: {pattern}")
@@ -67,11 +71,11 @@ def main() -> None:
     add_feature_args(parser)
     args = parser.parse_args()
 
-    feature_list = resolve_feature_list(args)
+    feature_list, artifact_tag = resolve_feature_selection(args)
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    df = load_multirun_majority(Path(args.prediction_dir), feature_list)
-    df.to_csv(output_dir / f"{feature_list}.csv", index=False)
+    df = load_multirun_majority(Path(args.prediction_dir), feature_list, artifact_tag)
+    df.to_csv(output_dir / f"{artifact_tag}.csv", index=False)
 
 
 if __name__ == "__main__":

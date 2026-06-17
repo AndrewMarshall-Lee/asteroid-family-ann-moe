@@ -79,6 +79,7 @@ def load_train_data(
     csv_path: str | Path,
     feature_list: list[str],
     artifact_root: str | Path = ".",
+    artifact_tag: str | None = None,
 ) -> tuple[torch.Tensor, StandardScaler, torch.Tensor]:
     """Load complete rows for a feature set and persist scaler/label encoder."""
     artifact_root = Path(artifact_root)
@@ -96,9 +97,9 @@ def load_train_data(
     scaler = StandardScaler()
     features_scaled = scaler.fit_transform(features)
 
-    feature_tag = str(feature_list)
-    joblib.dump(scaler, artifact_root / "Scaler" / f"{feature_tag}_scaler.save")
-    joblib.dump(label_encoder, artifact_root / "LE" / f"{feature_tag}_label_encoder.save")
+    artifact_tag = artifact_tag or str(feature_list)
+    joblib.dump(scaler, artifact_root / "Scaler" / f"{artifact_tag}_scaler.save")
+    joblib.dump(label_encoder, artifact_root / "LE" / f"{artifact_tag}_label_encoder.save")
 
     train = torch.tensor(features_scaled, dtype=torch.float32)
     target = torch.tensor(label_indices, dtype=torch.long)

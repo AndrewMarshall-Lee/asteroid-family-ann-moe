@@ -10,8 +10,9 @@ import sys
 from pathlib import Path
 
 from classify import test_model
-from feature_sets import add_feature_args, resolve_feature_list
+from feature_sets import add_feature_args, resolve_feature_selection
 from majority_vote import load_multirun_majority
+from reproducibility import set_global_seed
 from train_family_stratified import train_model
 from tune import tune_hyperparameters
 import utils
@@ -33,10 +34,11 @@ def main() -> None:
     parser.add_argument("--train-epochs", type=int, default=300)
     parser.add_argument("--runs", type=int, default=20)
     parser.add_argument("--early-stop", action="store_true")
+    parser.add_argument("--seed", type=int, default=None)
     args = parser.parse_args()
 
-    feature_list = resolve_feature_list(args)
-    feature_tag = str(feature_list)
+    set_global_seed(args.seed)
+    feature_list, artifact_tag = resolve_feature_selection(args)
     data_path = Path(args.data)
     artifact_root = Path(args.artifact_root)
     prediction_dir = Path(args.prediction_dir)
@@ -55,9 +57,10 @@ def main() -> None:
         data_path,
         feature_list,
         artifact_root,
+        artifact_tag,
     )
 
-    if args.tune or not (artifact_root / "Tune" / f"{feature_tag}_best.dat").exists():
+    if args.tune or not (artifact_root / "Tune" / f"{artifact_tag}_best.dat").exists():
         print("Tuning expert hyperparameters")
         tune_hyperparameters(
             train_data,
@@ -65,7 +68,9 @@ def main() -> None:
             n_trials=args.trials,
             epochs=args.tune_epochs,
             feature_list=feature_list,
+            artifact_tag=artifact_tag,
             artifact_root=artifact_root,
+            seed=args.seed,
         )
 
     prediction_dir.mkdir(parents=True, exist_ok=True)
@@ -80,19 +85,22 @@ def main() -> None:
             delta=0.005,
             feature_list=feature_list,
             artifact_root=artifact_root,
+            artifact_tag=artifact_tag,
+            seed=None if args.seed is None else args.seed + run_id,
         )
-        output_path = prediction_dir / f"{feature_tag}_run{run_id}.csv"
+        output_path = prediction_dir / f"{artifact_tag}_run{run_id}.csv"
         test_model(
             data_path,
-            artifact_root / "Train" / f"{feature_tag}_model.pth",
+            artifact_root / "Train" / f"{artifact_tag}_model.pth",
             output_path,
             feature_list,
             artifact_root,
+            artifact_tag,
         )
 
     majority_dir.mkdir(parents=True, exist_ok=True)
-    majority = load_multirun_majority(prediction_dir, feature_list)
-    majority_path = majority_dir / f"{feature_tag}.csv"
+    majority = load_multirun_majority(prediction_dir, feature_list, artifact_tag)
+    majority_path = majority_dir / f"{artifact_tag}.csv"
     majority.to_csv(majority_path, index=False)
     print(f"\nSaved majority-vote output: {majority_path}")
 

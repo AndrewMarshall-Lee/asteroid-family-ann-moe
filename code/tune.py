@@ -13,9 +13,10 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset, random_split
 
-from feature_sets import add_feature_args, resolve_feature_list
+from feature_sets import add_feature_args, resolve_feature_selection
 import utils
 from models import EarlyStopping, FlexiMLP
+from reproducibility import set_global_seed
 
 
 def objective(
@@ -25,8 +26,15 @@ def objective(
     epochs: int,
     feature_list: list[str],
     artifact_root: Path,
+    artifact_tag: str,
+    seed: int | None = None,
 ) -> float:
     """Train a trial model and return validation loss."""
+    if seed is not None:
+        torch.manual_seed(seed + trial.number)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed + trial.number)
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     input_dim = data.shape[1]
     output_dim = len(torch.unique(target))
@@ -58,9 +66,24 @@ def objective(
     dataset = TensorDataset(data, target)
     val_len = max(1, int(len(dataset) * val_split))
     train_len = len(dataset) - val_len
-    train_ds, val_ds = random_split(dataset, [train_len, val_len])
+    split_generator = torch.Generator()
+    if seed is not None:
+        split_generator.manual_seed(seed + trial.number)
+    train_ds, val_ds = random_split(
+        dataset,
+        [train_len, val_len],
+        generator=split_generator if seed is not None else None,
+    )
 
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+    loader_generator = torch.Generator()
+    if seed is not None:
+        loader_generator.manual_seed(seed + trial.number)
+    train_loader = DataLoader(
+        train_ds,
+        batch_size=batch_size,
+        shuffle=True,
+        generator=loader_generator if seed is not None else None,
+    )
     val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
 
     model = FlexiMLP(
@@ -120,7 +143,7 @@ def objective(
     }
     utils.save_tuning_params(
         trial_params,
-        artifact_root / "Trials" / str(feature_list),
+        artifact_root / "Trials" / artifact_tag,
         best=False,
     )
     return final_val_loss
@@ -132,14 +155,17 @@ def tune_hyperparameters(
     n_trials: int,
     epochs: int,
     feature_list: list[str],
+    artifact_tag: str,
     artifact_root: str | Path = "artifacts",
+    seed: int | None = None,
 ) -> dict:
     """Tune one feature set and save the best parameters for train_moe.py."""
     artifact_root = Path(artifact_root)
     (artifact_root / "Tune").mkdir(parents=True, exist_ok=True)
     (artifact_root / "Trials").mkdir(parents=True, exist_ok=True)
 
-    study = optuna.create_study(direction="minimize")
+    sampler = optuna.samplers.TPESampler(seed=seed) if seed is not None else None
+    study = optuna.create_study(direction="minimize", sampler=sampler)
     study.optimize(
         lambda trial: objective(
             trial,
@@ -148,6 +174,8 @@ def tune_hyperparameters(
             epochs=epochs,
             feature_list=feature_list,
             artifact_root=artifact_root,
+            artifact_tag=artifact_tag,
+            seed=seed,
         ),
         n_trials=n_trials,
     )
@@ -158,7 +186,7 @@ def tune_hyperparameters(
     }
     utils.save_tuning_params(
         best_params,
-        artifact_root / "Tune" / str(feature_list),
+        artifact_root / "Tune" / artifact_tag,
         best=True,
     )
     return best_params
@@ -171,13 +199,16 @@ def main() -> None:
     add_feature_args(parser)
     parser.add_argument("--epochs", type=int, default=50, help="Epochs per Optuna trial.")
     parser.add_argument("--trials", type=int, default=100, help="Number of Optuna trials.")
+    parser.add_argument("--seed", type=int, default=None)
     args = parser.parse_args()
 
-    feature_list = resolve_feature_list(args)
+    set_global_seed(args.seed)
+    feature_list, artifact_tag = resolve_feature_selection(args)
     train_data, _, target = utils.load_train_data(
         args.data,
         feature_list,
         args.artifact_root,
+        artifact_tag,
     )
     best = tune_hyperparameters(
         train_data,
@@ -185,7 +216,9 @@ def main() -> None:
         n_trials=args.trials,
         epochs=args.epochs,
         feature_list=feature_list,
+        artifact_tag=artifact_tag,
         artifact_root=args.artifact_root,
+        seed=args.seed,
     )
     print("Best tuning parameters:")
     for key, value in best.items():
